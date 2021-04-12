@@ -572,3 +572,15 @@ class ConfigLevelT(Enum):
     """CORTX configuration levels"""
     CLUSTER = "cluster"
     NODE = "node"
+
+
+class ConfstoreKey(Enum):
+
+    """Confstore delimiters and encrytion keys"""
+    
+    BMC = "bmc"
+    STORAGE = "storage_enclosure"
+    KEYDELIMITER = ">"
+    KVDELIMITER = "=>"
+    CLUSTERID = "cluster_id"
+

@@ -36,7 +36,8 @@ from . import (
 from ..config import (
     ALL_MINIONS,
     CONFSTORE_ROOT_FILE,
-    CORTX_CONFIG_DIR
+    CORTX_CONFIG_DIR,
+    ConfstoreKey
 )
 
 from .. import (
@@ -59,23 +60,24 @@ class ConfStoreExport(CommandParserFillerMixin):
     def _confstore_encrypt(self, key, value, cipher):  # noqa: C901
         if not value:
             return value
-        cypher_name = key.split('>')[0]
-        cluster_id = grains_get("cluster_id",targets=local_minion_id())[local_minion_id()]["cluster_id"]
+        cypher_name = key.split(ConfstoreKey.KEYDELIMITER)[0]
+        cluster_id = grains_get(ConfstoreKey.CLUSTERID, targets=local_minion_id())[
+            local_minion_id()][ConfstoreKey.CLUSTERID]
         component_name = "cortx"
 
-        if 'bmc' in key:
-            cypher_id = key.split('>')[1]
+        if ConfstoreKey.BMC in key:
+            cypher_id = key.split(ConfstoreKey.KEYDELIMITER)[1]
             component_name = "cluster"
-        elif 'storage_enclosure' in key:
-            cypher_id = key.split('>')[1]
+        elif ConfstoreKey.STORAGE in key:
+            cypher_id = key.split(ConfstoreKey.KEYDELIMITER)[1]
             component_name = "storage"
         else:
             cypher_id = cluster_id
 
         cipher_key = cipher.Cipher.generate_key(cluster_id, component_name)
-        value = cipher.Cipher.decrypt(cipher_key, secret.encode("utf-8")).decode("utf-8")
-        
-         
+        value = cipher.Cipher.decrypt(
+            cipher_key, value.encode("utf-8")).decode("utf-8")
+
         cipher_key = cipher.Cipher.generate_key(cypher_id, cypher_name)
         return str(
             cipher.Cipher.encrypt(
@@ -128,27 +130,23 @@ class ConfStoreExport(CommandParserFillerMixin):
 
             Path(CORTX_CONFIG_DIR).mkdir(parents=True, exist_ok=True)
 
-            Conf = importlib.import_module('cortx.utils.conf_store.conf_store.Conf')
-            
+            Conf = importlib.import_module(
+                'cortx.utils.conf_store.conf_store.Conf')
+
             cipher = importlib.import_module('cortx.utils.security.cipher')
 
             Conf.load('provisioner', pillar[PillarKey(pillar_key)])
 
-            delimiter = '=>'
-            for i, data in enumerate(template_data):
+            for data in template_data:
                 if data:
-                    key, value = data.split(delimiter)
+                    key, value = data.split(ConfstoreKey.KVDELIMITER)
                     if 'secret' in key:
                         value = self._confstore_encrypt(key, value, cipher)
-                        template_data[i] = key + delimiter + value
                     Conf.set("provisioner", key, value)
 
             Conf.save("provisioner")
-            logger.info("Template loaded to confstore")
 
-            with open(template_file_path, 'w') as stream:
-                for data in template_data:
-                    stream.write(data + '\n')
+            logger.info("Template loaded to confstore")
 
             confstor_path = pillar[PillarKey(pillar_key)].split(':/')[1]
 
